@@ -1,0 +1,33 @@
+# Title: Create a VPC with 2 pub 2 priv subnets
+
+vpc = create vpc cidr={vpc.cidr} name=DNA-VPC
+gateway = create internetgateway
+attach internetgateway id=$gateway vpc=$vpc
+
+firstsubnet = create subnet cidr={firstsubnet.cidr} vpc=$vpc name={firstsubnet.name} availabilityzone={first.subnet.availabilityzone}
+secondsubnet = create subnet cidr={secondsubnet.cidr} vpc=$vpc name={secondsubnet.name} availabilityzone={second.subnet.availabilityzone}
+thirdsubnet = create subnet cidr={thirdsubnet.cidr} vpc=$vpc name={thirdsubnet.name} availabilityzone={first.subnet.availabilityzone}
+fourthsubnet = create subnet cidr={fourthsubnet.cidr} vpc=$vpc name={fourthsubnet.name} availabilityzone={second.subnet.availabilityzone}
+update subnet id=$firstsubnet public=true
+update subnet id=$secondsubnet public=true
+
+elasticip = create elasticip domain=vpc
+natgate = create natgateway elasticip-id=$elasticip subnet=$firstsubnet
+check natgateway id=$natgate state=available timeout=180
+
+pubroutetable = create routetable vpc=$vpc
+attach routetable id=$pubroutetable subnet=$firstsubnet
+attach routetable id=$pubroutetable subnet=$secondsubnet
+create route cidr=0.0.0.0/0 gateway=$gateway table=$pubroutetable
+
+priroutetable = create routetable vpc=$vpc
+attach routetable id=$priroutetable subnet=$thirdsubnet
+attach routetable id=$priroutetable subnet=$fourthsubnet
+create route cidr=0.0.0.0/0 gateway=$natgate table=$priroutetable
+
+imageid = search images amazonlinux --latest-id
+
+securitygroup = create securitygroup description={securitygroup.name} name={securitygroup.name} vpc=$vpc
+update securitygroup cidr={ping.cidr} id=$securitygroup inbound=authorize protocol=-1
+update securitygroup cidr=0.0.0.0/0 id=$securitygroup inbound=authorize portrange=22 protocol=tcp
+instanceid = create instance count=1 image=$imageid keypair=dna-key name={instance.name} subnet=$firstsubnet type=t2.micro securitygroup=$securitygroup
